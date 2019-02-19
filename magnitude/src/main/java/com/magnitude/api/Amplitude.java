@@ -19,6 +19,7 @@ import java.util.Map;
  */
 public class Amplitude {
 
+    
     static final Map<String, AmplitudeClient> instances = new HashMap<String, AmplitudeClient>();
 
     /**
