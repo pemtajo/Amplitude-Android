@@ -1435,7 +1435,7 @@ public class AmplitudeClient {
     }
 
 
-    public void NetworkClient(NetworkClient networkClient) {
+    public void setNetworkClient(NetworkClient networkClient) {
         this.networkClient = networkClient;
     }
 
