@@ -1,1 +1,1 @@
-include ':app', ':magnitude', ':google-play-services-25.0.0'
+include ':app', ':magnitude'
