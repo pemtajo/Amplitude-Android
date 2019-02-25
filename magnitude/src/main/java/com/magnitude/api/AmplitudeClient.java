@@ -1935,7 +1935,7 @@ public class AmplitudeClient {
                 Constants.API_VERSION,
                 apiKey,
                 events,
-                getCurrentTimeMillis(),
+                timestampString,
                 checksumString,
                 url);
 
