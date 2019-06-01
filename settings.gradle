@@ -1,1 +1,1 @@
-include ':app', ':magnitude'
+include ':app', ':amplitude'
