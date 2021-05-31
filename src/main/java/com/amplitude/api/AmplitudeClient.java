@@ -13,6 +13,8 @@ import com.amplitude.security.MD5;
 import com.amplitude.util.DoubleCheck;
 import com.amplitude.util.Provider;
 
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -27,11 +29,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import okhttp3.Call;
-import okhttp3.FormBody;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
 /**
  * <h1>AmplitudeClient</h1>
@@ -167,6 +164,8 @@ public class AmplitudeClient {
     private String libraryName = Constants.LIBRARY;
     private String libraryVersion = Constants.VERSION;
     private boolean useDynamicConfig = false;
+
+    private NetworkClient networkClient = new DefaultNetworkClient();
 
     private AtomicBoolean updateScheduled = new AtomicBoolean(false);
     /**
@@ -609,7 +608,7 @@ public class AmplitudeClient {
         apiPropertiesTrackingOptions = appliedTrackingOptions.getApiPropertiesTrackingOptions();
         return this;
     }
-    
+
     /**
      * Enable COPPA (Children's Online Privacy Protection Act) restrictions on ADID, city, IP address and location tracking.
      * This can be used by any customer that does not want to collect ADID, city, IP address and location tracking.
@@ -775,6 +774,10 @@ public class AmplitudeClient {
             this.eventExplorer = new EventExplorer(this.instanceName);
         }
         this.eventExplorer.show(activity);
+    }
+
+    public void setNetworkClient(NetworkClient networkClient) {
+        this.networkClient = networkClient;
     }
 
     /**
@@ -2041,36 +2044,20 @@ public class AmplitudeClient {
             logger.e(TAG, e.toString());
         }
 
-        FormBody body = new FormBody.Builder()
-            .add("v", apiVersionString)
-            .add("client", apiKey)
-            .add("e", events)
-            .add("upload_time", timestampString)
-            .add("checksum", checksumString)
-            .build();
-
-        Request request;
-        try {
-             Request.Builder builder = new Request.Builder()
-                     .url(url)
-                     .post(body);
-
-             if (!Utils.isEmptyString(bearerToken)) {
-                builder.addHeader("Authorization", "Bearer " + bearerToken);
-             }
-
-             request = builder.build();
-        } catch (IllegalArgumentException e) {
-            logger.e(TAG, e.toString());
-            uploadingCurrently.set(false);
-            return;
-        }
+        EventUploadRequest eventUploadRequest = new EventUploadRequest(
+                Constants.API_VERSION,
+                apiKey,
+                events,
+                timestampString,
+                checksumString,
+                url,
+                bearerToken);
 
         boolean uploadSuccess = false;
 
         try {
-            Response response = client.newCall(request).execute();
-            String stringResponse = response.body().string();
+            Response response = this.networkClient.uploadEvents(eventUploadRequest, client);
+            String stringResponse = response.getBody();
             if (stringResponse.equals("success")) {
                 uploadSuccess = true;
                 logThread.post(new Runnable() {
@@ -2101,7 +2088,7 @@ public class AmplitudeClient {
             } else if (stringResponse.equals("request_db_write_failed")) {
                 logger.w(TAG,
                         "Couldn't write to request database on server, will attempt to reupload later");
-            } else if (response.code() == 413) {
+            } else if (response.getCode() == 413) {
 
                 // If blocked by one massive event, drop it
                 if (backoffUpload && backoffUploadBatchSize == 1) {
@@ -2126,6 +2113,10 @@ public class AmplitudeClient {
                 logger.w(TAG, "Upload failed, " + stringResponse
                         + ", will attempt to reupload later");
             }
+        } catch (IllegalArgumentException e) {
+            logger.e(TAG, e.toString());
+            uploadingCurrently.set(false);
+            lastError = e;
         } catch (java.net.ConnectException e) {
             // logger.w(TAG,
             // "No internet connection found, unable to upload events");
